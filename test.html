@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- Bootstrap -->
+<link rel="stylesheet" href="css/bootstrap.min.css">
+<link rel="stylesheet" href="css/bootstrap-slider.min.css">
+<link rel="stylesheet" href="css/style.css">
+
+<script src='js/jquery.min.js'></script>
+<script src='js/bootstrap.bundle.min.js'></script>
+<script src='js/bootstrap-slider.min.js'></script>
+<script src='js/util.js'></script>
+<!-- three.js library -->
+<script src='js/three.min.js'></script>
+<script src="js/stats.min.js"></script>
+<script src="js/MTLLoader.js"></script>
+<script src="js/OBJLoader.js"></script>
+<!-- ar.js -->
+<script src="js/ar.min.js"></script>
+<script>THREEx.ArToolkitContext.baseURL = './'</script>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;'>
+<div class="interface">
+	<div class="home"><a id="menu" href="#"><img src="img/menu.png" height="60" /></a></div>
+	<div class="saveLink"><a href="#" id="saveLink"><img src="img/ss.png" height="60" /></a></div>
+	<input id="shadowX"  type="text" data-slider-min="-20" data-slider-max="20" data-slider-step="0.25" data-slider-value="0"/>
+	<input id="shadowY"  type="text" data-slider-min="-20" data-slider-max="20" data-slider-step="0.25" data-slider-value="0"/>
+</div>
+
+<canvas style='visibility:hidden;' id='doubleImage'></canvas>
+
+<div id="loader"><div id="inside"></div></div>
+
+<div id="models">
+	<div class="container">
+			<div class="closeBtn"><a id="close" href="#"><img src="img/close.png" height="60"></a></div>
+			<div class="header"><img src="img/fakea.png"></div>
+			<div class="header"><a href="img/fakea.pdf" target="_blank">Clicca qui per scaricare il marker, stampalo su un foglio A4 e posizionalo nella stanza</a><br>Seleziona il modello e vedi prima di acquistare!</div>
+			<div class="row">
+				<div class="col-md-6">
+					<a id="m1" class="elem" href="#">
+						<img src="img/6.jpg" />
+						<p>Libreria</p>
+					</a>
+				</div>
+				<div class="col-md-6">
+					<a id="m2" class="elem" href="#">
+						<img src="img/2.jpg" />
+						<p>Divano</p>
+					</a>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-md-6">
+					<a id="m3" class="elem" href="#">
+						<img src="img/8.jpg" />
+						<p>Scaffale</p>
+					</a>
+				</div>
+				<div class="col-md-6">
+					<a id="m4" class="elem" href="#">
+						<img src="img/11.jpg" />
+						<p>Tavolo con sedie</p>
+					</a>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-md-6">
+					<a id="m5" class="elem" href="#">
+						<img src="img/9.jpg" />
+						<p>Cassettiera con mensole</p>
+					</a>
+				</div>
+				<div class="col-md-6">
+					<a id="m6" class="elem" href="#">
+						<img src="img/10.jpg" />
+						<p>Tavolino di vetro</p>
+					</a>
+				</div>
+			</div>
+			<!-- Fine -->
+			<footer class="page-footer font-small blue pt-4 mt-4">
+			  <div class="footer-copyright text-center py-3">
+			  	Elaborato di CG&3D per posizionamento di modelli 3D in uno scenario reale tramite realtà aumentata - Francesco Guidi 2018
+			  </div>
+			</footer>
+		</div>
+	</div>
+	<script>
+	//////////////////////////////////////////////////////////////////////////////////
+	//		Init
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// init renderer
+	var renderer	= new THREE.WebGLRenderer({
+		//antialias	: true,
+		preserveDrawingBuffer: true, // Screenshot saving capabilities
+		alpha: true
+	});
+	renderer.shadowMap.enabled = true;
+	renderer.setClearColor(new THREE.Color('lightgrey'), 0)
+	renderer.domElement.id = 'mainCanvas';
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	renderer.domElement.style.position = 'absolute'
+	renderer.domElement.style.top = '0px'
+	renderer.domElement.style.left = '0px'
+	document.body.appendChild( renderer.domElement );
+
+	// array of functions for the rendering loop
+	var onRenderFcts= [];
+
+	// init scene and camera
+	var scene	= new THREE.Scene();
+	
+	//////////////////////////////////////////////////////////////////////////////////
+	//		Initialize a basic camera
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// Create a camera
+	var camera = new THREE.Camera();
+	scene.add(camera);
+
+	////////////////////////////////////////////////////////////////////////////////
+	//          handle arToolkitSource
+	////////////////////////////////////////////////////////////////////////////////
+
+	var arToolkitSource = new THREEx.ArToolkitSource({
+		// to read from an image
+		sourceType : 'image',
+		sourceUrl : THREEx.ArToolkitContext.baseURL + '/data/test.jpg',		
+	})
+
+	arToolkitSource.init(function onReady(){
+		onResize()
+	})
+	
+	// handle resize
+	window.addEventListener('resize', function(){
+		onResize()
+	})
+	function onResize(){
+		arToolkitSource.onResizeElement()	
+		arToolkitSource.copyElementSizeTo(renderer.domElement)	
+		if( arToolkitContext.arController !== null ){
+			arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas)	
+		}	
+	}
+	////////////////////////////////////////////////////////////////////////////////
+	//          initialize arToolkitContext
+	////////////////////////////////////////////////////////////////////////////////
+	
+	var wCamera = window.innerWidth;
+	var hCamera = window.innerHeight;
+	// create atToolkitContext
+	var arToolkitContext = new THREEx.ArToolkitContext({
+		cameraParametersUrl: THREEx.ArToolkitContext.baseURL + 'data/camera_para.dat',
+		detectionMode: 'mono',
+		maxDetectionRate: 60,
+		canvasWidth: wCamera,
+		canvasHeight: hCamera
+	})
+	// initialize it
+	arToolkitContext.init(function onCompleted(){
+		// copy projection matrix to camera
+		camera.projectionMatrix.copy( arToolkitContext.getProjectionMatrix() );
+	})
+
+	// update artoolkit on every frame
+	onRenderFcts.push(function(){
+		if( arToolkitSource.ready === false )	return
+
+		arToolkitContext.update( arToolkitSource.domElement )
+	})
+	
+	
+	////////////////////////////////////////////////////////////////////////////////
+	//          Create a ArMarkerControls
+	////////////////////////////////////////////////////////////////////////////////
+	
+	var markerRoot = new THREE.Group
+	scene.add(markerRoot)
+	var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+		type : 'pattern',
+		patternUrl : THREEx.ArToolkitContext.baseURL + 'data/tri.patt' //'data/fakea.patt'
+	})
+
+	// build a smoothedControls
+	var smoothedRoot = new THREE.Group()
+	scene.add(smoothedRoot)
+	var smoothedControls = new THREEx.ArSmoothedControls(smoothedRoot, {
+		lerpPosition: 0.4,
+		lerpQuaternion: 0.3,
+		lerpScale: 1,
+	})
+	onRenderFcts.push(function(delta){
+		smoothedControls.update(markerRoot)
+	})
+	//////////////////////////////////////////////////////////////////////////////////
+	//		add an object in the scene
+	//////////////////////////////////////////////////////////////////////////////////
+
+	var arWorldRoot = smoothedRoot
+
+	// Init ambient light and load default model
+	var ambientLight = new THREE.AmbientLight( 0xcccccc, 0.4 );
+	arWorldRoot.add( ambientLight );
+
+	loadModel(1);
+
+	// Add stats
+	var stats = new Stats();
+	stats.dom.style.position = 'absolute';
+	stats.dom.style.left = '0px';
+	stats.dom.style.top = 'auto';
+	stats.dom.style.bottom = '0px';
+	document.body.appendChild( stats.dom );	
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//		render the whole thing on the page
+	//////////////////////////////////////////////////////////////////////////////////
+
+	// render the scene
+	onRenderFcts.push(function(){
+		renderer.render( scene, camera );
+		stats.update();
+	})
+
+	// run the rendering loop
+	var lastTimeMsec= null
+	requestAnimationFrame(function animate(nowMsec){
+		// keep looping
+		requestAnimationFrame( animate );
+		// measure time
+		lastTimeMsec	= lastTimeMsec || nowMsec-1000/60
+		var deltaMsec	= Math.min(200, nowMsec - lastTimeMsec)
+		lastTimeMsec	= nowMsec
+		// call each update function
+		onRenderFcts.forEach(function(onRenderFct){
+			onRenderFct(deltaMsec/1000, nowMsec/1000)
+		})
+	})
+</script>
+</body>
